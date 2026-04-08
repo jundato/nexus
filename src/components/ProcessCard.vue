@@ -14,11 +14,11 @@
       </div>
       <div class="card-actions">
         <template v-if="process.status === 'running'">
-          <button class="btn-stop" @click.stop="$emit('stop', process.name)" title="Stop"><i class="fa-solid fa-stop"></i></button>
-          <button class="btn-restart" @click.stop="$emit('restart', process.name)" title="Restart"><i class="fa-solid fa-rotate-right"></i></button>
+          <button class="btn-stop btn-icon" @click.stop="$emit('stop', process.name)" title="Stop"><i class="fa-solid fa-stop"></i></button>
+          <button class="btn-restart btn-icon" @click.stop="$emit('restart', process.name)" title="Restart"><i class="fa-solid fa-rotate-right"></i></button>
         </template>
         <template v-else>
-          <button class="btn-start" @click.stop="$emit('start', process.name)" title="Start"><i class="fa-solid fa-play"></i></button>
+          <button class="btn-start btn-icon" @click.stop="$emit('start', process.name)" title="Start"><i class="fa-solid fa-play"></i></button>
         </template>
         <button class="btn-gear" @click.stop="$emit('edit', process.name)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

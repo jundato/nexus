@@ -21,6 +21,8 @@ body {
   min-height: 100vh;
 }
 
+.mr-1 { margin-right: 6px; }
+
 /* ── Header ───────────────────────────────── */
 header {
   display: flex;
@@ -63,12 +65,37 @@ button:active { opacity: 0.7; }
 
 .btn-start { background: var(--green); color: #000; }
 .btn-stop { background: var(--red); color: #000; }
-.btn-icon { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0; border-radius: 6px; }
 .btn-restart { background: var(--blue); color: #000; }
+
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 6px;
+  font-size: 11px;
+}
+
 .btn-ghost {
   background: var(--surface2);
   color: var(--text-dim);
   border: 1px solid var(--border);
+}
+
+.btn-start, .btn-stop, .btn-restart {
+  transition: transform 0.1s, opacity 0.1s, filter 0.1s;
+}
+
+.btn-start:hover, .btn-stop:hover, .btn-restart:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+  opacity: 1;
+}
+
+.btn-start:active, .btn-stop:active, .btn-restart:active {
+  transform: translateY(0);
 }
 
 /* ── Container ────────────────────────────── */

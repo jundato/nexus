@@ -22,16 +22,14 @@
           <line x1="3" y1="18" x2="21" y2="18"/>
         </svg>
       </button>
-      <button class="btn-ghost" @click="$emit('add-process')">+ Add Process</button>
+      <button class="btn-ghost" @click="$emit('add-process')">
+        <i class="fa-solid fa-plus mr-1"></i> Add Process
+      </button>
       <button class="btn-start btn-icon" @click="$emit('start-all')" title="Start All">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-          <polygon points="5,3 19,12 5,21"/>
-        </svg>
+        <i class="fa-solid fa-play"></i>
       </button>
       <button class="btn-stop btn-icon" @click="$emit('stop-all')" title="Stop All">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-          <rect x="4" y="4" width="16" height="16" rx="2"/>
-        </svg>
+        <i class="fa-solid fa-stop"></i>
       </button>
       <button
         type="button"

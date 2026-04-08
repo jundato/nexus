@@ -339,7 +339,7 @@ function stopProcess(name) {
 // Serve Vue build output from dist/, fall back to legacy public/
 const distDir = path.join(__dirname, 'dist');
 const publicDir = path.join(__dirname, 'public');
-app.use(express.static(fs.existsSync(distDir) ? distDir : publicDir));
+
 app.use(express.json());
 
 app.get('/api/processes', (_req, res) => {
@@ -427,6 +427,48 @@ app.post('/api/processes/:name/restart', async (req, res) => {
     await wait();
   }
   res.json(startProcess(name));
+});
+
+app.get('/api/processes/:name/git/branches', async (req, res) => {
+  const name = req.params.name;
+  const config = processConfigs.find(c => c.name === name);
+  if (!config || !config.cwd) return res.status(404).json({ error: 'Process or CWD not found' });
+  
+  const resolvedCwd = resolveTemplate(config.cwd);
+  try {
+    const output = execFileSync('git', ['branch', '--format=%(refname:short)'], {
+      cwd: resolvedCwd,
+      encoding: 'utf-8',
+      timeout: 5000
+    });
+    const branches = output.trim().split('\n').filter(Boolean);
+    res.json({
+      branches,
+      current: getGitBranch(resolvedCwd)
+    });
+  } catch (err) {
+    res.status(500).json({ error: `Failed to list branches: ${err.message}` });
+  }
+});
+
+app.post('/api/processes/:name/git/checkout', async (req, res) => {
+  const name = req.params.name;
+  const { branch } = req.body;
+  const config = processConfigs.find(c => c.name === name);
+  if (!config || !config.cwd) return res.status(404).json({ error: 'Process or CWD not found' });
+  if (!branch) return res.status(400).json({ error: 'Branch name is required' });
+
+  const resolvedCwd = resolveTemplate(config.cwd);
+  try {
+    execFileSync('git', ['checkout', branch], {
+      cwd: resolvedCwd,
+      encoding: 'utf-8',
+      timeout: 10000
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: `Git checkout failed: ${err.message}` });
+  }
 });
 
 app.post('/api/start-all', (_req, res) => {
@@ -618,57 +660,91 @@ app.put('/api/groups', (req, res) => {
   res.json({ ok: true });
 });
 
-// ── HTTP + WebSocket Server ─────────────────
-const server = http.createServer(app);
-const wss = new WebSocketServer({ server, path: '/ws/terminal' });
+async function bootstrap() {
+  if (process.env.NODE_ENV === 'development') {
+    const { createServer } = require('vite');
+    const vite = await createServer({
+      server: { middlewareMode: true },
+      appType: 'custom',
+    });
+    app.use(vite.middlewares);
 
-wss.on('connection', (ws, req) => {
-  // Extract process name from query: /ws/terminal?name=<processName>
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  const name = url.searchParams.get('name');
-  if (!name) { ws.close(1008, 'Missing name param'); return; }
-
-  const entry = processes.get(name);
-  if (!entry || !entry.ptyProc) { ws.close(1008, 'Not a PTY process'); return; }
-
-  // Register client
-  if (!wsClients.has(name)) wsClients.set(name, new Set());
-  wsClients.get(name).add(ws);
-
-  ws.on('error', () => {});  // Prevent unhandled error crashes
-
-  // Send buffered log text as a single batch so the terminal isn't blank on connect
-  if (entry.logs.length && ws.readyState === 1) {
-    try {
-      const batch = entry.logs.filter(l => l.source === 'stdout').map(l => l.text).join('');
-      ws.send(batch);
-    } catch {}
+    // Serve index.html with Vite's HMR transformation
+    app.get('*', async (req, res, next) => {
+      const url = req.originalUrl;
+      if (url.startsWith('/api') || url.startsWith('/ws')) return next();
+      try {
+        let template = fs.readFileSync(path.resolve(__dirname, 'index.html'), 'utf-8');
+        template = await vite.transformIndexHtml(url, template);
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+      } catch (e) {
+        vite.ssrFixStacktrace(e);
+        next(e);
+      }
+    });
+  } else {
+    app.use(express.static(fs.existsSync(distDir) ? distDir : publicDir));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(fs.existsSync(distDir) ? distDir : publicDir, 'index.html'));
+    });
   }
 
-  // Client → PTY (keyboard input + resize)
-  ws.on('message', (msg) => {
-    if (!entry.ptyProc) return;
-    try {
-      const parsed = JSON.parse(msg);
-      if (parsed.type === 'resize') {
-        entry.ptyProc.resize(
-          Math.min(parsed.cols, 300),
-          Math.min(parsed.rows, 100)
-        );
-      } else if (parsed.type === 'input') {
-        entry.ptyProc.write(parsed.data);
-      }
-    } catch {
-      entry.ptyProc.write(msg.toString());
+  // ── HTTP + WebSocket Server ─────────────────
+  const server = http.createServer(app);
+  const wss = new WebSocketServer({ server, path: '/ws/terminal' });
+
+  wss.on('connection', (ws, req) => {
+    // Extract process name from query: /ws/terminal?name=<processName>
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const name = url.searchParams.get('name');
+    if (!name) { ws.close(1008, 'Missing name param'); return; }
+
+    const entry = processes.get(name);
+    if (!entry || !entry.ptyProc) { ws.close(1008, 'Not a PTY process'); return; }
+
+    // Register client
+    if (!wsClients.has(name)) wsClients.set(name, new Set());
+    wsClients.get(name).add(ws);
+
+    ws.on('error', () => {});  // Prevent unhandled error crashes
+
+    // Send buffered log text as a single batch so the terminal isn't blank on connect
+    if (entry.logs.length && ws.readyState === 1) {
+      try {
+        const batch = entry.logs.filter(l => l.source === 'stdout').map(l => l.text).join('');
+        ws.send(batch);
+      } catch {}
     }
+
+    // Client → PTY (keyboard input + resize)
+    ws.on('message', (msg) => {
+      if (!entry.ptyProc) return;
+      try {
+        const parsed = JSON.parse(msg);
+        if (parsed.type === 'resize') {
+          entry.ptyProc.resize(
+            Math.min(parsed.cols, 300),
+            Math.min(parsed.rows, 100)
+          );
+        } else if (parsed.type === 'input') {
+          entry.ptyProc.write(parsed.data);
+        }
+      } catch {
+        entry.ptyProc.write(msg.toString());
+      }
+    });
+
+    ws.on('close', () => {
+      const set = wsClients.get(name);
+      if (set) { set.delete(ws); if (set.size === 0) wsClients.delete(name); }
+    });
   });
 
-  ws.on('close', () => {
-    const set = wsClients.get(name);
-    if (set) { set.delete(ws); if (set.size === 0) wsClients.delete(name); }
+  server.listen(PORT, () => {
+    console.log(`xprocessmanager running at http://localhost:${PORT} [${process.env.NODE_ENV || 'production'}]`);
   });
-});
+}
 
-server.listen(PORT, () => {
-  console.log(`xprocessmanager running at http://localhost:${PORT}`);
+bootstrap().catch(err => {
+  console.error('Failed to bootstrap server:', err);
 });
