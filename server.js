@@ -20,6 +20,13 @@ if (!process.env.PATH.split(':').includes(localBinDir)) {
   process.env.PATH = localBinDir + ':' + process.env.PATH;
 }
 
+// Ensure standard macOS binary paths are in PATH (crucial for launchd/background services)
+['/usr/local/bin', '/opt/homebrew/bin'].forEach(dir => {
+  if (fs.existsSync(dir) && !process.env.PATH.split(':').includes(dir)) {
+    process.env.PATH = dir + ':' + process.env.PATH;
+  }
+});
+
 const systemConfigPath = path.join(__dirname, 'system.config.json');
 const systemConfig = fs.existsSync(systemConfigPath) ? JSON.parse(fs.readFileSync(systemConfigPath, 'utf-8')) : {};
 
@@ -700,13 +707,20 @@ app.get('/api/processes/:name/git/branches', async (req, res) => {
 
 app.post('/api/processes/:name/git/checkout', async (req, res) => {
   const name = req.params.name;
-  const { branch } = req.body;
+  const { branch, strategy } = req.body;
   const config = processConfigs.find(c => c.name === name);
   if (!config || !config.cwd) return res.status(404).json({ error: 'Process or CWD not found' });
   if (!branch) return res.status(400).json({ error: 'Branch name is required' });
 
   const resolvedCwd = resolveTemplate(config.cwd);
   try {
+    if (strategy === 'stash') {
+      execFileSync('git', ['stash'], { cwd: resolvedCwd, encoding: 'utf-8', timeout: 10000 });
+    } else if (strategy === 'discard') {
+      execFileSync('git', ['reset', '--hard'], { cwd: resolvedCwd, encoding: 'utf-8', timeout: 10000 });
+      execFileSync('git', ['clean', '-fd'], { cwd: resolvedCwd, encoding: 'utf-8', timeout: 10000 });
+    }
+
     execFileSync('git', ['checkout', branch], {
       cwd: resolvedCwd,
       encoding: 'utf-8',
@@ -714,7 +728,11 @@ app.post('/api/processes/:name/git/checkout', async (req, res) => {
     });
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: `Git checkout failed: ${err.message}` });
+    const msg = err.stderr || err.message;
+    if (msg.includes('local changes to the following files would be overwritten')) {
+      return res.status(409).json({ error: 'CONFLICT', message: msg });
+    }
+    res.status(500).json({ error: `Git checkout failed: ${msg}` });
   }
 });
 
@@ -761,15 +779,27 @@ app.post('/api/processes/:name/git/remote-status', async (req, res) => {
 
 app.post('/api/processes/:name/git/pull', async (req, res) => {
   const name = req.params.name;
+  const { strategy } = req.body || {};
   const config = processConfigs.find(c => c.name === name);
   if (!config || !config.cwd) return res.status(404).json({ error: 'Process or CWD not found' });
   
   const resolvedCwd = resolveTemplate(config.cwd);
   try {
+    if (strategy === 'stash') {
+      execFileSync('git', ['stash'], { cwd: resolvedCwd, encoding: 'utf-8', timeout: 10000 });
+    } else if (strategy === 'discard') {
+      execFileSync('git', ['reset', '--hard'], { cwd: resolvedCwd, encoding: 'utf-8', timeout: 10000 });
+      execFileSync('git', ['clean', '-fd'], { cwd: resolvedCwd, encoding: 'utf-8', timeout: 10000 });
+    }
+
     execFileSync('git', ['pull'], { cwd: resolvedCwd, timeout: 30000 });
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: `Git pull failed: ${err.message}` });
+    const msg = err.stderr || err.message;
+    if (msg.includes('local changes to the following files would be overwritten')) {
+      return res.status(409).json({ error: 'CONFLICT', message: msg });
+    }
+    res.status(500).json({ error: `Git pull failed: ${msg}` });
   }
 });
 

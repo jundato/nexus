@@ -85,7 +85,7 @@ const props = defineProps({
   isSelected: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['select', 'start', 'stop', 'restart', 'edit', 'hover-enter', 'hover-leave', 'branch-click', 'open-workspace'])
+const emit = defineEmits(['select', 'start', 'stop', 'restart', 'edit', 'hover-enter', 'hover-leave', 'branch-click', 'open-workspace', 'pull-git'])
 
 const { showAlert } = useAlert()
 
@@ -144,18 +144,13 @@ async function checkGitStatus() {
 
 async function pullGitChanges() {
   gitRemoteStatus.value = 'checking'
-  try {
-    const res = await api(`/api/processes/${encodeURIComponent(props.node.name)}/git/pull`, 'POST')
-    if (res.ok) {
-      await checkGitStatus()
+  emit('pull-git', props.node.name, (success) => {
+    if (success) {
+      checkGitStatus()
     } else {
-      showAlert('Pull Error', `Pull failed: ${res.error || 'Unknown error'}`)
       gitRemoteStatus.value = 'behind'
     }
-  } catch (err) {
-    console.error('Failed to pull changes:', err)
-    gitRemoteStatus.value = 'behind'
-  }
+  })
 }
 
 onUnmounted(() => {

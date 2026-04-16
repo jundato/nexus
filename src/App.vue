@@ -44,6 +44,7 @@
       @move-to-group="handleMoveToGroup"
       @branch-click="openBranchModal"
       @open-workspace="openWorkspaceModal"
+      @pull-git="(name, cb) => handlePullGitChanges(name).then(cb)"
     />
   </div>
 
@@ -342,18 +343,56 @@ function closeBranchModal() {
   branchModalStore.nodeName = null
 }
 
-async function handleCheckoutBranch(branch) {
+async function askUserStrategy(title, message) {
+  return new Promise((resolve) => {
+    const res = confirm(`${message}\n\nWould you like to Stash your changes or Discard them?\n\nOK = Stash, Cancel = Discard\n(Close/Esc to abort)`);
+    // This is a bit crude but works for a quick CLI-like experience without building a full custom modal.
+    // For a better UX, I should probably add a custom GitConflictModal.
+    if (res === true) resolve('stash');
+    else resolve('discard');
+  });
+}
+
+async function handleCheckoutBranch(branch, strategy = null) {
   if (!branchModalStore.nodeName) return
   const name = branchModalStore.nodeName
   branchModalStore.loading = true
-  const res = await api(`/api/processes/${name}/git/checkout`, 'POST', { branch })
+  const res = await api(`/api/processes/${name}/git/checkout`, 'POST', { branch, strategy })
   branchModalStore.loading = false
+  
+  if (res.error === 'CONFLICT') {
+    const choice = await askUserStrategy('Git Conflict', res.message);
+    if (choice) {
+      return handleCheckoutBranch(branch, choice);
+    }
+    return;
+  }
+
   if (res.error) {
     showAlert('Branch Error', res.error)
     return
   }
   closeBranchModal()
   await nodeStore.refresh(true)
+}
+
+async function handlePullGitChanges(name, strategy = null) {
+  const res = await api(`/api/processes/${name}/git/pull`, 'POST', { strategy })
+  
+  if (res.error === 'CONFLICT') {
+    const choice = await askUserStrategy('Git Conflict', res.message);
+    if (choice) {
+      return handlePullGitChanges(name, choice);
+    }
+    return false;
+  }
+
+  if (res.error) {
+    showAlert('Pull Error', res.error)
+    return false
+  }
+  await nodeStore.refresh(true)
+  return true
 }
 
 // ── Workspace Modal ─────────────────────────
