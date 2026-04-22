@@ -45,7 +45,7 @@
             </div>
           </div>
         </template>
-        <button v-if="node.cwd" class="btn-icon btn-workspace" @click.stop="$emit('open-workspace', node)" title="Open Workspace">
+        <button v-if="node.cwd && !terminalOpen" class="btn-icon btn-workspace" :class="{ active: workspaceOpen }" @click.stop="$emit('open-workspace', node)" title="Toggle Workspace">
           <i :class="node.type === 'agent' ? 'fa-solid fa-laptop-code' : 'fa-solid fa-folder-open'"></i>
         </button>
         <button class="btn-gear" @click.stop="$emit('edit', node.name)">
@@ -91,8 +91,10 @@ import { useAlert } from '../composables/useAlert.js'
 
 const props = defineProps({
   node: { type: Object, required: true },
-  borderColor: { type: String, default: '#2e3144' },
+  borderColor: { type: String, default: '#4b5563' },
   isSelected: { type: Boolean, default: false },
+  terminalOpen: { type: Boolean, default: false },
+  workspaceOpen: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['select', 'start', 'stop', 'restart', 'edit', 'hover-enter', 'hover-leave', 'hover-cancel', 'branch-click', 'open-workspace', 'pull-git'])

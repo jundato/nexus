@@ -40,8 +40,11 @@
             </div>
           </div>
         </template>
+        <button v-if="node?.cwd" class="btn-ghost btn-icon" :class="{ active: workspaceOpen }" @click="$emit('open-workspace', node)" title="Toggle Workspace">
+          <i :class="node?.type === 'agent' ? 'fa-solid fa-laptop-code' : 'fa-solid fa-folder-open'"></i>
+        </button>
       </div>
-      <button class="btn-ghost" @click="$emit('close')" title="Close Terminal">
+      <button class="btn-ghost btn-icon" @click="$emit('close')" title="Close Terminal">
         <i class="fa-solid fa-xmark"></i>
       </button>
     </div>
@@ -69,10 +72,11 @@ import { api } from '../composables/useApi'
 const props = defineProps({
   node: { type: Object, default: null },
   panelHeight: { type: Number, default: 400 },
+  workspaceOpen: { type: Boolean, default: false },
 })
 
 const nodeName = computed(() => props.node?.name)
-const emit = defineEmits(['close', 'resize', 'start', 'stop', 'restart'])
+const emit = defineEmits(['close', 'resize', 'start', 'stop', 'restart', 'open-workspace'])
 
 const isGemini = computed(() => {
   const cmd = String(props.node?.command || '').toLowerCase()

@@ -2,12 +2,7 @@
   <header>
     <div style="display: flex; align-items: center; gap: 16px">
       <h1>NEXUS</h1>
-      <div class="summary-bar">
-        <span class="stat-badge" title="Total nodes"><span class="stat-dot stat-dot-total"></span>{{ total }}</span>
-        <span class="stat-badge" title="Running"><span class="stat-dot stat-dot-running"></span>{{ counts.running }}</span>
-        <span class="stat-badge" title="Stopped"><span class="stat-dot stat-dot-stopped"></span>{{ counts.stopped + counts.stopping }}</span>
-        <span v-if="counts.errored" class="stat-badge" title="Errored"><span class="stat-dot stat-dot-errored"></span>{{ counts.errored }}</span>
-      </div>
+      <StatSummary :counts="counts" :total="total" />
     </div>
     <div class="header-actions">
 
@@ -34,6 +29,8 @@
 </template>
 
 <script setup>
+import StatSummary from './StatSummary.vue'
+
 defineProps({
   counts: { type: Object, required: true },
   total: { type: Number, required: true },

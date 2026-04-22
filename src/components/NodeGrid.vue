@@ -7,7 +7,9 @@
         :class="{
           'group-drag-over': groupDragOverIndex === gi && groupDragOverIndex !== groupDragIndex,
           'group-card-drag-over': cardDragOverGroup === group && dragName,
+          'collapsed': collapsedGroups[group]
         }"
+        @click="toggleGroup(group)"
         @dragover.prevent="onGroupHeaderDragOver(gi, $event)"
         @dragleave="onGroupHeaderDragLeave(gi)"
         @drop.prevent="onGroupHeaderDrop(gi, group)"
@@ -17,21 +19,33 @@
           draggable="true"
           @dragstart.stop="onGroupDragStart(gi, group, $event)"
           @dragend="onGroupDragEnd"
+          @click.stop
           title="Drag to reorder group"
         ><i class="fa-solid fa-grip-vertical"></i></span>
+        <i class="fa-solid fa-chevron-down group-collapse-icon"></i>
         {{ group }}
+        
+        <StatSummary 
+          :counts="getCounts(items)" 
+          :total="items.length" 
+          size="small"
+          class="group-summary"
+        />
+
         <div class="group-title-actions" @click.stop>
           <button class="btn-start btn-icon" style="padding: 2px 6px; font-size: 11px" @click="$emit('start-group', group)" title="Start all in group"><i class="fa-solid fa-forward-fast"></i></button>
           <button class="btn-stop btn-icon" style="padding: 2px 6px; font-size: 11px" @click="$emit('stop-group', group)" title="Stop all in group"><i class="fa-solid fa-power-off"></i></button>
         </div>
       </div>
-      <div class="node-grid">
+      <div v-show="!collapsedGroups[group] || !group" class="node-grid">
         <NodeCard
           v-for="p in items"
           :key="p.name"
           :node="p"
           :border-color="colorMap[p.group || 'other'] || '#4b5563'"
           :is-selected="selectedNode === p.name"
+          :terminal-open="selectedNode === p.name"
+          :workspace-open="workspaceNode === p.name"
           draggable="true"
           @dragstart="onDragStart(p.name, $event)"
           @dragover.prevent="onDragOver(p.name, $event)"
@@ -59,17 +73,30 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, reactive } from 'vue'
 import NodeCard from './NodeCard.vue'
+import StatSummary from './StatSummary.vue'
+import { useNodes } from '../composables/useNodes.js'
+
+const { getCounts } = useNodes()
 
 const props = defineProps({
   sortedGroups: { type: Array, required: true },
   colorMap: { type: Object, required: true },
   selectedNode: { type: String, default: null },
+  workspaceNode: { type: String, default: null },
   viewMode: { type: String, default: 'group' },
 })
 
 const emit = defineEmits(['select', 'start', 'stop', 'restart', 'edit', 'hover-enter', 'hover-leave', 'hover-cancel', 'reorder', 'reorder-groups', 'move-to-group', 'branch-click', 'open-workspace', 'pull-git', 'start-group', 'stop-group'])
+
+// ── Collapsing Groups ──────────────────────
+const collapsedGroups = reactive(JSON.parse(localStorage.getItem('xpm-collapsed-groups') || '{}'))
+
+function toggleGroup(group) {
+  collapsedGroups[group] = !collapsedGroups[group]
+  localStorage.setItem('xpm-collapsed-groups', JSON.stringify(collapsedGroups))
+}
 
 // ── Card Drag and Drop ─────────────────────
 const dragName = ref(null)

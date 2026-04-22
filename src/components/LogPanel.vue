@@ -14,10 +14,13 @@
       <span style="font-size: 11px; color: var(--text-dim); margin-left: auto; margin-right: 12px">
         {{ lastRefresh }}
       </span>
-      <button class="btn-ghost" @click="$emit('clear')" style="margin-right: 4px" title="Clear Logs">
+      <button v-if="node?.cwd" class="btn-ghost btn-icon" :class="{ active: workspaceOpen }" @click="$emit('open-workspace', node)" style="margin-right: 4px" title="Toggle Workspace">
+        <i :class="node?.type === 'agent' ? 'fa-solid fa-laptop-code' : 'fa-solid fa-folder-open'"></i>
+      </button>
+      <button class="btn-ghost btn-icon" @click="$emit('clear')" style="margin-right: 4px" title="Clear Logs">
         <i class="fa-solid fa-eraser"></i>
       </button>
-      <button class="btn-ghost" @click="$emit('close')" title="Close Panel">
+      <button class="btn-ghost btn-icon" @click="$emit('close')" title="Close Panel">
         <i class="fa-solid fa-xmark"></i>
       </button>
     </div>
@@ -55,13 +58,15 @@ function formatAnsi(text) {
 }
 
 const props = defineProps({
+  node: { type: Object, default: null },
   selectedNode: { type: String, default: null },
-  logs: { type: Array, required: true },
+  logs: { type: Array, default: () => [] },
   lastRefresh: { type: String, default: '' },
   panelHeight: { type: Number, default: 300 },
+  workspaceOpen: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['close', 'resize', 'clear', 'send-stdin'])
+const emit = defineEmits(['close', 'resize', 'clear', 'send-stdin', 'open-workspace'])
 
 const logBodyRef = ref(null)
 const dragging = ref(false)

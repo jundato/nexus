@@ -32,6 +32,7 @@
       :color-map="colorMap"
       :view-mode="viewMode"
       :selected-node="logStore.selectedNode.value"
+      :workspace-node="workspaceModalStore.nodeName"
       @select="handleSelectLog"
       @start="handleStart"
       @stop="handleStop"
@@ -68,24 +69,29 @@
     v-if="selectedIsPty"
     :node="selectedNodeObject"
     :panel-height="logStore.logPanelHeight.value"
+    :workspace-open="workspaceModalStore.nodeName === logStore.selectedNode.value"
     @close="handleCloseLog"
     @resize="logStore.applyLogPanelHeight"
     @start="handleStart"
     @stop="handleStop"
     @restart="handleRestart"
+    @open-workspace="openWorkspaceModal"
   />
 
   <LogPanel
     v-else
     ref="logPanelRef"
+    :node="selectedNodeObject"
     :selected-node="logStore.selectedNode.value"
     :logs="logStore.logs.value"
     :last-refresh="logStore.lastRefresh.value"
     :panel-height="logStore.logPanelHeight.value"
+    :workspace-open="workspaceModalStore.nodeName === logStore.selectedNode.value"
     @close="handleCloseLog"
     @resize="logStore.applyLogPanelHeight"
     @clear="logStore.clearLogs"
     @send-stdin="handleSendStdin"
+    @open-workspace="openWorkspaceModal"
   />
 
   <NodeModal
@@ -453,6 +459,11 @@ const workspaceModalIsAgent = computed(() => {
 })
 
 function openWorkspaceModal(node) {
+  if (workspaceModalStore.show && workspaceModalStore.nodeName === node.name) {
+    workspaceModalStore.show = false
+    workspaceModalStore.nodeName = null
+    return
+  }
   workspaceModalStore.nodeName = node.name
   workspaceModalStore.show = true
   
@@ -464,14 +475,8 @@ function openWorkspaceModal(node) {
 }
 
 function closeWorkspaceModal() {
-  const wasAgent = workspaceModalIsAgent.value
-  const nodeName = workspaceModalStore.nodeName
   workspaceModalStore.show = false
   workspaceModalStore.nodeName = null
-  
-  if (wasAgent && logStore.selectedNode.value === nodeName) {
-    logStore.closeLog()
-  }
 }
 
 // ── Logs ────────────────────────────────────

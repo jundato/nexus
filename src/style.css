@@ -157,6 +157,12 @@ button:active {
   border: 1px solid var(--border);
 }
 
+.btn-ghost.active {
+  color: var(--text);
+  background: var(--surface2);
+  border-color: var(--blue);
+}
+
 .btn-start,
 .btn-stop,
 .btn-restart {
@@ -207,10 +213,37 @@ button:active {
   display: flex;
   align-items: center;
   gap: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.group-collapse-icon {
+  font-size: 10px;
+  transition: transform 0.2s;
+  width: 12px;
+  text-align: center;
+}
+
+.group-title.collapsed .group-collapse-icon {
+  transform: rotate(-90deg);
 }
 
 .group-title:first-child {
   margin-top: 0;
+}
+
+.group-summary {
+  margin-left: 12px;
+  gap: 8px;
+}
+
+.group-summary .stat-badge {
+  font-size: 10px;
+}
+
+.group-summary .stat-dot {
+  width: 6px;
+  height: 6px;
 }
 
 .group-title-actions {
@@ -712,12 +745,21 @@ button:active {
   height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
+  opacity: 0.3;
+  transition: opacity 0.2s, box-shadow 0.2s;
 }
 
-.stat-dot-total   { background: var(--text-dim); opacity: 0.5; }
-.stat-dot-running { background: var(--green); box-shadow: 0 0 5px var(--green); }
+.stat-dot.is-active {
+  opacity: 1;
+}
+
+.stat-dot-total   { background: var(--text-dim); }
+.stat-dot-running { background: var(--green); }
 .stat-dot-stopped { background: var(--border); }
-.stat-dot-errored { background: var(--red); box-shadow: 0 0 5px var(--red); }
+.stat-dot-errored { background: var(--red); }
+
+.stat-dot-running.is-active { box-shadow: 0 0 5px var(--green); }
+.stat-dot-errored.is-active { box-shadow: 0 0 5px var(--red); }
 
 /* ── Modals ───────────────────────────────── */
 .modal-overlay {
@@ -1995,6 +2037,12 @@ button:active {
   color: var(--text-dim);
   border: 1px solid var(--card-color, var(--border));
   font-size: 11px;
+}
+
+.btn-workspace.active {
+  color: var(--yellow);
+  border-color: var(--yellow);
+  background: rgba(251, 191, 36, 0.1);
 }
 
 .btn-workspace:hover {

@@ -9,7 +9,7 @@
           {{ nodeName }}
         </h2>
         <div style="display: flex; gap: 6px; margin-left: auto">
-          <button class="btn-ghost" @click="handleClose" title="Close Workspace" style="padding: 4px 8px;">
+          <button class="btn-ghost btn-icon" @click="handleClose" title="Close Workspace">
             <i class="fa-solid fa-xmark"></i>
           </button>
         </div>
