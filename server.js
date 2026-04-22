@@ -1271,7 +1271,7 @@ async function bootstrap() {
   });
 
   server.listen(PORT, () => {
-    console.log(`xprocessmanager running at http://localhost:${PORT} [${process.env.NODE_ENV || 'production'}]`);
+    console.log(`Nexus running at http://localhost:${PORT} [${process.env.NODE_ENV || 'production'}]`);
   });
 }
 

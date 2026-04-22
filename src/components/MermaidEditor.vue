@@ -2,7 +2,7 @@
   <div class="modal-overlay" style="z-index: 1000; background: rgba(0,0,0,0.8)" @mousedown.self="closeMermaidEditor">
     <div class="modal mermaid-editor-modal" style="width: 90%; height: 85%; display: flex; flex-direction: column; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
       <div class="workspace-header" style="border-bottom: 1px solid var(--border); padding: 12px 16px; display: flex; align-items: center;">
-        <h2 style="margin: 0; font-size: 14px;"><i class="fa-solid fa-diagram-project" style="margin-right: 8px; color: var(--magenta)"></i>Mermaid Editor</h2>
+        <h2 style="margin: 0; font-size: 14px;"><i class="fa-solid fa-diagram-project" style="margin-right: 8px; color: var(--magenta)"></i>Flow Editor</h2>
         <div style="display: flex; gap: 8px; margin-left: auto">
           <button class="btn-start" style="padding: 6px 14px; font-size: 12px" @click="saveMermaidEdit">Save</button>
           <button class="btn-ghost" @click="closeMermaidEditor">Cancel</button>
@@ -17,7 +17,8 @@
               <button class="btn-ghost" style="padding: 2px 6px; font-size: 12px;" @click="zoomDiagram(-0.1)"><i class="fa-solid fa-minus"></i></button>
               <span style="font-size: 11px; color: var(--text-dim); min-width: 40px; text-align: center;">{{ Math.round(diagramZoom * 100) }}%</span>
               <button class="btn-ghost" style="padding: 2px 6px; font-size: 12px;" @click="zoomDiagram(0.1)"><i class="fa-solid fa-plus"></i></button>
-              <button class="btn-ghost" style="padding: 2px 6px; font-size: 11px; margin-left: 4px;" @click="resetDiagramView">Reset</button>
+              <button class="btn-ghost" style="padding: 2px 6px; font-size: 11px; margin-left: 4px;" @click="fitDiagramToScreen">Fit</button>
+              <button class="btn-ghost" style="padding: 2px 6px; font-size: 11px;" @click="resetDiagramView">Reset</button>
             </div>
           </div>
           <div
@@ -167,6 +168,56 @@ function resetDiagramView() {
   diagramPanX.value = 0
   diagramPanY.value = 0
   setTimeout(() => { diagramTransition.value = 'none' }, 220)
+}
+
+function fitDiagramToScreen() {
+  if (!diagramViewportRef.value || !mermaidEditorPreviewRef.value) return;
+  const viewportRect = diagramViewportRef.value.getBoundingClientRect();
+  const svgEl = mermaidEditorPreviewRef.value.querySelector('svg');
+  if (!svgEl) return;
+  
+  let naturalWidth = 0;
+  let naturalHeight = 0;
+  
+  const viewBox = svgEl.getAttribute('viewBox');
+  if (viewBox) {
+    const parts = viewBox.split(' ').map(parseFloat);
+    if (parts.length === 4) {
+      naturalWidth = parts[2];
+      naturalHeight = parts[3];
+    }
+  }
+  
+  if (!naturalWidth || !naturalHeight) {
+    const currentSvgRect = svgEl.getBoundingClientRect();
+    if (currentSvgRect.width === 0 || currentSvgRect.height === 0) return;
+    naturalWidth = currentSvgRect.width / diagramZoom.value;
+    naturalHeight = currentSvgRect.height / diagramZoom.value;
+  }
+  
+  const padding = 48;
+  const scaleX = (viewportRect.width - padding) / naturalWidth;
+  const scaleY = (viewportRect.height - padding) / naturalHeight;
+  
+  let newZoom = Math.min(scaleX, scaleY);
+  newZoom = Math.max(0.1, Math.min(2.0, newZoom));
+  
+  const scaledSvgWidth = naturalWidth * newZoom;
+  const scaledSvgHeight = naturalHeight * newZoom;
+  const scaledPadding = 24 * newZoom;
+  
+  const centerX = viewportRect.width / 2;
+  const centerY = viewportRect.height / 2;
+  
+  const panX = centerX - (scaledSvgWidth / 2) - scaledPadding;
+  const panY = centerY - (scaledSvgHeight / 2) - scaledPadding;
+  
+  diagramTransition.value = 'transform 0.3s ease';
+  diagramZoom.value = newZoom;
+  diagramPanX.value = panX;
+  diagramPanY.value = panY;
+  
+  setTimeout(() => { diagramTransition.value = 'none' }, 350);
 }
 
 function onDiagramWheel(e) {
@@ -461,7 +512,7 @@ function attachNodeClickHandlers(containerEl) {
   })
 }
 
-async function updateMermaidLivePreview() {
+async function updateMermaidLivePreview(isInitialLoad = false) {
   if (!mermaidEditorCode.value) { mermaidLiveSvg.value = ''; mermaidLiveError.value = null; return }
   try {
     const mermaid = await loadMermaid()
@@ -470,7 +521,27 @@ async function updateMermaidLivePreview() {
     mermaidLiveSvg.value = svg
     mermaidLiveError.value = null
     await nextTick()
+    
+    if (mermaidEditorPreviewRef.value) {
+      const svgEl = mermaidEditorPreviewRef.value.querySelector('svg')
+      if (svgEl) {
+        svgEl.style.maxWidth = 'none'
+        const viewBox = svgEl.getAttribute('viewBox')
+        if (viewBox) {
+          const parts = viewBox.split(' ').map(parseFloat)
+          if (parts.length === 4) {
+            svgEl.style.width = `${parts[2]}px`
+            svgEl.style.height = `${parts[3]}px`
+          }
+        }
+      }
+    }
+    
     attachNodeClickHandlers(mermaidEditorPreviewRef.value)
+    
+    if (isInitialLoad === true) {
+      setTimeout(() => fitDiagramToScreen(), 50)
+    }
   } catch (err) {
     mermaidLiveError.value = err.message || err.toString()
   }
@@ -490,6 +561,6 @@ watch(() => props.initialCode, (newVal) => {
   diagramPanX.value = 0
   diagramPanY.value = 0
   nodeDetail.value.visible = false
-  updateMermaidLivePreview()
+  updateMermaidLivePreview(true)
 }, { immediate: true })
 </script>
