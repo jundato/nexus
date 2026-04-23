@@ -186,9 +186,27 @@ button:active {
 
 .btn-start:hover,
 .btn-stop:hover,
-.btn-restart:hover {
+.btn-restart:hover,
+.btn-start:focus-visible,
+.btn-stop:focus-visible,
+.btn-restart:focus-visible {
   transform: translateY(-1px);
   opacity: 1;
+}
+
+.btn-start:focus-visible,
+.btn-stop:focus-visible,
+.btn-restart:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+[data-terminal-actions] button:focus-visible {
+  outline: 3px solid var(--blue) !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 6px rgba(96, 165, 250, 0.2) !important;
+  background: var(--blue) !important;
+  color: #1a1d27 !important;
 }
 
 .btn-start:active,
@@ -203,6 +221,18 @@ button:active {
 }
 
 /* ── Groups & Grid ────────────────────────── */
+.group-section {
+  margin: 0 -12px 24px -12px;
+  padding: 4px 12px 12px 12px;
+  border-radius: 12px;
+  transition: background 0.2s;
+}
+
+.group-section.group-hovered {
+  background: rgba(255, 255, 255, 0.025);
+  box-shadow: inset 3px 0 0 0 var(--group-color);
+}
+
 .group-title {
   font-size: 11px;
   font-weight: 600;
@@ -232,6 +262,10 @@ button:active {
   margin-top: 0;
 }
 
+.group-hovered .group-title {
+  color: var(--text);
+}
+
 .group-summary {
   margin-left: 12px;
   gap: 8px;
@@ -254,7 +288,7 @@ button:active {
   transition: opacity 0.15s;
 }
 
-.group-title:hover .group-title-actions {
+.group-hovered .group-title-actions {
   opacity: 1;
 }
 

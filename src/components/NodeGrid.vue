@@ -1,6 +1,13 @@
 <template>
   <div>
-    <template v-for="([group, items], gi) in sortedGroups" :key="group">
+    <div 
+      v-for="([group, items], gi) in sortedGroups" :key="group"
+      class="group-section"
+      :class="{ 'group-hovered': hoveredGroup === group && group }"
+      :style="{ '--group-color': colorMap[group || 'other'] || '#4b5563' }"
+      @mouseenter="hoveredGroup = group"
+      @mouseleave="hoveredGroup = null"
+    >
       <div
         v-if="group"
         class="group-title"
@@ -69,7 +76,7 @@
           @push-git="(...args) => $emit('push-git', ...args)"
         />
       </div>
-    </template>
+    </div>
   </div>
 </template>
 
@@ -90,6 +97,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['select', 'start', 'stop', 'restart', 'edit', 'hover-enter', 'hover-leave', 'hover-cancel', 'reorder', 'reorder-groups', 'move-to-group', 'branch-click', 'open-workspace', 'pull-git', 'push-git', 'start-group', 'stop-group'])
+
+const hoveredGroup = ref(null)
 
 // ── Collapsing Groups ──────────────────────
 const collapsedGroups = reactive(JSON.parse(localStorage.getItem('xpm-collapsed-groups') || '{}'))

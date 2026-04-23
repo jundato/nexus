@@ -5,11 +5,29 @@
     @mouseleave="$emit('hover-enter', node.name, cardRef, expanded, node.command)"
   >
     <template v-if="node.status === 'running' && !isSelected">
-      <button class="btn-stop btn-icon" @click.stop="$emit('stop', node.name)" title="Stop"><i class="fa-solid fa-stop"></i></button>
+      <button 
+        ref="mainActionBtn" 
+        class="btn-stop btn-icon" 
+        @click.stop="$emit('stop', node.name)" 
+        @keydown.enter.stop="$emit('stop', node.name)"
+        @keydown.space.stop.prevent="$emit('stop', node.name)"
+        title="Stop"
+      >
+        <i class="fa-solid fa-stop"></i>
+      </button>
       <button class="btn-restart btn-icon" @click.stop="$emit('restart', node.name)" title="Restart"><i class="fa-solid fa-rotate-right"></i></button>
     </template>
     <template v-else-if="!isSelected">
-      <button class="btn-start btn-icon" @click.stop="$emit('start', node.name)" title="Start"><i class="fa-solid fa-play"></i></button>
+      <button 
+        ref="mainActionBtn" 
+        class="btn-start btn-icon" 
+        @click.stop="$emit('start', node.name)" 
+        @keydown.enter.stop="$emit('start', node.name)"
+        @keydown.space.stop.prevent="$emit('start', node.name)"
+        title="Start"
+      >
+        <i class="fa-solid fa-play"></i>
+      </button>
       <div v-if="node.type === 'agent' && isGemini" class="session-dropdown-container">
         <button class="btn-sessions btn-icon" @click.stop="toggleSessions" title="Resume Session">
           <i class="fa-solid fa-history"></i>
@@ -109,6 +127,16 @@ const emit = defineEmits(['start', 'stop', 'restart', 'edit', 'open-workspace', 
 
 const { showAlert } = useAlert()
 const { executeTool } = useTasks()
+
+const mainActionBtn = ref(null)
+function focusMain() {
+  if (mainActionBtn.value) {
+    mainActionBtn.value.focus()
+    return true
+  }
+  return false
+}
+defineExpose({ mainActionBtn, focusMain })
 
 const isGemini = computed(() => {
   const cmd = String(props.node.command || '').toLowerCase()

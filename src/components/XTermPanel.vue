@@ -20,6 +20,8 @@
       </div>
       <CardActions
         v-if="node"
+        ref="cardActionsRef"
+        data-terminal-actions
         style="margin-left: auto; margin-right: 12px; gap: 8px;"
         :node="node"
         :workspace-open="workspaceOpen"
@@ -93,7 +95,58 @@ const typeIcon = computed(() => {
 const termContainerRef = ref(null)
 const dragging = ref(false)
 const dragOverTerminal = ref(false)
+const cardActionsRef = ref(null)
 let dragCounter = 0
+
+function applyInitialFocus() {
+  const isAgent = props.node?.type === 'agent'
+  const isRunning = props.node?.status === 'running'
+
+  if (isAgent && isRunning) {
+    // For running agents, focus the terminal
+    let attempts = 0
+    const tryFocusTerm = () => {
+      if (term) {
+        term.focus()
+      } else if (attempts < 20) {
+        attempts++
+        requestAnimationFrame(tryFocusTerm)
+      }
+    }
+    tryFocusTerm()
+  } else {
+    // For non-running agents, or any other node type, focus the main action button
+    focusMainAction()
+  }
+}
+
+function focusMainAction() {
+  let attempts = 0
+  const tryFocus = () => {
+    if (cardActionsRef.value?.focusMain()) {
+      // success
+    } else if (attempts < 20) {
+      attempts++
+      requestAnimationFrame(tryFocus)
+    }
+  }
+  tryFocus()
+}
+
+// Focus logic when node opens or status changes
+watch(() => props.node, (newVal, oldVal) => {
+  if (newVal?.name) {
+    // Only trigger if node changed or status changed
+    if (newVal.name !== oldVal?.name || newVal.status !== oldVal?.status) {
+      if (!oldVal) {
+        // First mount - wait a bit for animation
+        setTimeout(applyInitialFocus, 100)
+      } else {
+        applyInitialFocus()
+      }
+    }
+  }
+}, { immediate: true, deep: true })
 
 let term = null
 let fitAddon = null
@@ -206,7 +259,10 @@ function connectWs(name) {
   localWs.onopen = () => {
     if (term) {
       fitWide()
-      nextTick(() => term.focus())
+      // Only auto-focus terminal if it's an agent that's ALREADY running
+      if (props.node?.type === 'agent' && props.node?.status === 'running') {
+        nextTick(() => term.focus())
+      }
     }
   }
 
@@ -244,7 +300,7 @@ watch(nodeName, async (name, oldName) => {
     else { term.clear(); fitWide() }
     connectWs(name)
     await nextTick()
-    focusTerminal()
+    applyInitialFocus()
   } else if (!name) {
     disconnectWs()
   }
@@ -276,7 +332,6 @@ onMounted(() => {
     connectWs(nodeName.value)
     nextTick(() => {
       fitWide()
-      focusTerminal()
     })
   }
 })
