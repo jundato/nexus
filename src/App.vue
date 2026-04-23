@@ -78,6 +78,7 @@
     @stop="handleStop"
     @restart="handleRestart"
     @open-workspace="openWorkspaceModal"
+    @edit="openEditModal"
   />
 
   <LogPanel
@@ -97,6 +98,7 @@
     @start="handleStart"
     @stop="handleStop"
     @restart="handleRestart"
+    @edit="openEditModal"
   />
 
   <NodeModal

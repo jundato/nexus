@@ -3,5 +3,6 @@
   "maxLogLines": 500,
   "logPollInterval": 500,
   "statusPollInterval": 3000,
-  "popoverPollInterval": 1500
+  "popoverPollInterval": 1500,
+  "terminalWidth": 120
 }

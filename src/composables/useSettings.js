@@ -58,8 +58,14 @@ export function useSettings() {
     })
 
     toolRows.value = Array.isArray(toolsData) && toolsData.length 
-      ? toolsData.map(t => ({ label: t.label || '', path: t.path || '', requiresParam: !!t.requiresParam }))
-      : [{ label: '', path: '', requiresParam: false }]
+      ? toolsData.map(t => ({ 
+          label: t.label || '', 
+          path: t.path || '', 
+          isBuiltIn: !!t.isBuiltIn,
+          requireConfirmation: !!t.requireConfirmation,
+          params: Array.isArray(t.params) ? t.params.map(p => ({ label: p.label || '', type: p.type || 'text' })) : []
+        }))
+      : [{ label: '', path: '', isBuiltIn: false, requireConfirmation: false, params: [] }]
 
     showSettingsModal.value = true
   }
@@ -85,7 +91,7 @@ export function useSettings() {
   }
 
   function addToolRow() {
-    toolRows.value.push({ label: '', path: '', requiresParam: false })
+    toolRows.value.push({ label: '', path: '', isBuiltIn: false, requireConfirmation: false, params: [] })
   }
 
   async function removeToolRow(index) {
@@ -143,7 +149,9 @@ export function useSettings() {
     const tools = toolRows.value.filter(t => t.label.trim() && t.path.trim()).map(t => ({
       label: t.label.trim(),
       path: t.path.trim(),
-      requiresParam: !!t.requiresParam
+      isBuiltIn: !!t.isBuiltIn,
+      requireConfirmation: !!t.requireConfirmation,
+      params: t.params.map(p => ({ label: p.label.trim(), type: p.type }))
     }))
     const r4 = await api('/api/tools', 'PUT', tools)
     if (r4.error) { alert(r4.error); return false }

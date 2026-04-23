@@ -482,6 +482,7 @@ app.get('/api/processes', (_req, res) => {
       resolvedCwd: resolvedCwd || null,
       branch: getGitBranch(resolvedCwd),
       usePty: !!config.usePty,
+      tools: config.tools || [],
       status: state.status,
       pid: state.pid,
       startedAt: state.startedAt,
@@ -866,11 +867,25 @@ app.post('/api/processes/:name/git/checkout', async (req, res) => {
       execFileSync('git', ['clean', '-fd'], { cwd: resolvedCwd, encoding: 'utf-8', timeout: 10000 });
     }
 
-    execFileSync('git', ['checkout', branch], {
-      cwd: resolvedCwd,
-      encoding: 'utf-8',
-      timeout: 10000
-    });
+    try {
+      execFileSync('git', ['checkout', branch], {
+        cwd: resolvedCwd,
+        encoding: 'utf-8',
+        timeout: 10000
+      });
+    } catch (err) {
+      const stderr = err.stderr || err.message || '';
+      if (stderr.includes("did not match any file(s) known to git")) {
+        // Fallback: Try creating the branch
+        execFileSync('git', ['checkout', '-b', branch], {
+          cwd: resolvedCwd,
+          encoding: 'utf-8',
+          timeout: 10000
+        });
+      } else {
+        throw err;
+      }
+    }
     res.json({ ok: true });
   } catch (err) {
     const msg = err.stderr || err.message;
@@ -1025,7 +1040,7 @@ app.post('/api/browse-file', (req, res) => {
     const script = `
       set defaultDir to POSIX file "${startDir.replace(/"/g, '\\"')}"
       try
-        set chosenFile to POSIX path of (choose file with prompt "Select Tool Executable" default location defaultDir)
+        set chosenFile to POSIX path of (choose file with prompt "Select File" default location defaultDir)
         return chosenFile
       on error
         return "__CANCELLED__"
@@ -1034,12 +1049,12 @@ app.post('/api/browse-file', (req, res) => {
     cmd = 'osascript';
     args = ['-e', script];
   } else if (platform === 'win32') {
-    const psScript = `Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.OpenFileDialog; $f.InitialDirectory = '${startDir.replace(/'/g, "''")}'; $f.Title = 'Select Tool Executable'; if ($f.ShowDialog() -eq 'OK') { $f.FileName } else { '__CANCELLED__' }`;
+    const psScript = `Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.OpenFileDialog; $f.InitialDirectory = '${startDir.replace(/'/g, "''")}'; $f.Title = 'Select File'; if ($f.ShowDialog() -eq 'OK') { $f.FileName } else { '__CANCELLED__' }`;
     cmd = 'powershell';
     args = ['-NoProfile', '-Command', psScript];
   } else {
     cmd = 'zenity';
-    args = ['--file-selection', '--title=Select Tool Executable', `--filename=${startDir}/`];
+    args = ['--file-selection', '--title=Select File', `--filename=${startDir}/`];
   }
 
   try {
@@ -1054,7 +1069,56 @@ app.post('/api/browse-file', (req, res) => {
   } catch (err) {
     if (platform === 'linux') {
       try {
-        const result = execFileSync('kdialog', ['--getopenfilename', startDir, '--title', 'Select Tool Executable'], {
+        const result = execFileSync('kdialog', ['--getopenfilename', startDir, '--title', 'Select File'], {
+          encoding: 'utf-8',
+          timeout: 60000,
+        }).trim();
+        if (result) return res.json({ path: result });
+      } catch {}
+    }
+    res.json({ cancelled: true });
+  }
+});
+
+app.post('/api/browse-folder', (req, res) => {
+  const startDir = req.body.startDir || os.homedir();
+  const platform = os.platform();
+  let cmd, args;
+
+  if (platform === 'darwin') {
+    const script = `
+      set defaultDir to POSIX file "${startDir.replace(/"/g, '\\"')}"
+      try
+        set chosenDir to POSIX path of (choose folder with prompt "Select Folder" default location defaultDir)
+        return chosenDir
+      on error
+        return "__CANCELLED__"
+      end try
+    `;
+    cmd = 'osascript';
+    args = ['-e', script];
+  } else if (platform === 'win32') {
+    const psScript = `Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.FolderBrowserDialog; $f.SelectedPath = '${startDir.replace(/'/g, "''")}'; $f.Description = 'Select Folder'; if ($f.ShowDialog() -eq 'OK') { $f.SelectedPath } else { '__CANCELLED__' }`;
+    cmd = 'powershell';
+    args = ['-NoProfile', '-Command', psScript];
+  } else {
+    cmd = 'zenity';
+    args = ['--file-selection', '--directory', '--title=Select Folder', `--filename=${startDir}/`];
+  }
+
+  try {
+    const result = execFileSync(cmd, args, {
+      encoding: 'utf-8',
+      timeout: 60000,
+    }).trim();
+    if (!result || result === '__CANCELLED__') {
+      return res.json({ cancelled: true });
+    }
+    res.json({ path: result });
+  } catch (err) {
+    if (platform === 'linux') {
+      try {
+        const result = execFileSync('kdialog', ['--getexistingdirectory', startDir, '--title', 'Select Folder'], {
           encoding: 'utf-8',
           timeout: 60000,
         }).trim();
@@ -1111,21 +1175,21 @@ app.post('/api/config/import', (req, res) => {
 });
 
 app.post('/api/config', (req, res) => {
-  const { name, command, args, cwd, type, group, stopCommand, usePty, onSuccess } = req.body;
+  const { name, command, args, argsMode, cwd, type, group, stopCommand, usePty, onSuccess, tools } = req.body;
   if (!name || !command) {
     return res.status(400).json({ error: 'name and command are required' });
   }
   if (processConfigs.some((c) => c.name === name)) {
     return res.status(409).json({ error: `Process "${name}" already exists` });
   }
-  const entry = { name, command, args: args || [], type: type || 'service', group: group || 'other' };
+  const entry = { name, command, args: args || [], argsMode: argsMode || 'raw', type: type || 'service', group: group || 'other' };
   if (cwd) entry.cwd = cwd;
   if (stopCommand) entry.stopCommand = stopCommand;
   if (usePty !== undefined) entry.usePty = !!usePty;
   const onSuccessNormalized = normalizeOnSuccess(onSuccess);
   if (onSuccessNormalized !== undefined) entry.onSuccess = onSuccessNormalized;
-  processConfigs.push(entry);
-  saveConfig();
+  if (Array.isArray(tools)) entry.tools = tools;
+  processConfigs.push(entry);  saveConfig();
   res.json({ ok: true });
 });
 
@@ -1143,7 +1207,7 @@ app.put('/api/config/:name', (req, res) => {
   if (idx === -1) {
     return res.status(404).json({ error: `Process "${oldName}" not found` });
   }
-  const { name: newName, command, args, cwd, type, group, stopCommand, usePty, onSuccess } = req.body;
+  const { name: newName, command, args, argsMode, cwd, type, group, stopCommand, usePty, onSuccess, tools } = req.body;
   if (!command) {
     return res.status(400).json({ error: 'command is required' });
   }
@@ -1151,14 +1215,14 @@ app.put('/api/config/:name', (req, res) => {
   if (finalName !== oldName && processConfigs.some((c) => c.name === finalName)) {
     return res.status(409).json({ error: `Process "${finalName}" already exists` });
   }
-  const updated = { name: finalName, command, args: args || [], type: type || 'service', group: group || 'other' };
+  const updated = { name: finalName, command, args: args || [], argsMode: argsMode || 'raw', type: type || 'service', group: group || 'other' };
   if (cwd) updated.cwd = cwd;
   if (stopCommand) updated.stopCommand = stopCommand;
   if (usePty !== undefined) updated.usePty = !!usePty;
   const onSuccessNormalized = normalizeOnSuccess(onSuccess);
   if (onSuccessNormalized !== undefined) updated.onSuccess = onSuccessNormalized;
-  processConfigs[idx] = updated;
-  saveConfig();
+  if (Array.isArray(tools)) updated.tools = tools;
+  processConfigs[idx] = updated;  saveConfig();
 
   if (finalName !== oldName) {
     const entry = processes.get(oldName);
@@ -1265,7 +1329,7 @@ app.get('/api/tools', (_req, res) => {
 });
 
 app.post('/api/processes/:name/tools/execute', (req, res) => {
-  const { toolLabel, param } = req.body;
+  const { toolLabel, param, params } = req.body;
   const name = req.params.name;
   const config = processConfigs.find(c => c.name === name);
   if (!config) return res.status(404).json({ error: 'Process not found' });
@@ -1275,17 +1339,43 @@ app.post('/api/processes/:name/tools/execute', (req, res) => {
 
   const resolvedCwd = resolveTemplate(config.cwd) || process.cwd();
   let cmd = tool.path;
-  
-  // Replace {param} in tool path if it exists, otherwise append it
-  if (cmd.includes('{param}')) {
-    cmd = cmd.replace('{param}', param || '');
-  } else if (param) {
-    cmd += ` ${param}`;
-  }
 
   // Support {cwd} in tool path
   if (cmd.includes('{cwd}')) {
-    cmd = cmd.replace('{cwd}', resolvedCwd);
+    cmd = cmd.split('{cwd}').join(resolvedCwd);
+  }
+  
+  // Quote path if it's a file that exists and contains spaces
+  const toolExecPath = path.isAbsolute(cmd) ? cmd : path.resolve(resolvedCwd, cmd);
+  if (cmd.includes(' ') && !cmd.startsWith('"') && !cmd.startsWith("'") && fs.existsSync(toolExecPath)) {
+    cmd = `"${cmd}"`;
+  }
+
+  // Handle multiple params
+  if (Array.isArray(params)) {
+    let replacedAny = false;
+    params.forEach((p, i) => {
+      const placeholder = `{param${i}}`;
+      if (cmd.includes(placeholder)) {
+        cmd = cmd.split(placeholder).join(p || '');
+        replacedAny = true;
+      }
+    });
+    
+    if (!replacedAny) {
+      params.forEach(p => {
+        if (p) {
+          const quotedP = (p.includes(' ') && !p.startsWith('"') && !p.startsWith("'")) ? `"${p}"` : p;
+          cmd += ` ${quotedP}`;
+        }
+      });
+    }
+  } else if (cmd.includes('{param}')) {
+    const quotedParam = (param && param.includes(' ') && !param.startsWith('"') && !param.startsWith("'")) ? `"${param}"` : (param || '');
+    cmd = cmd.replace('{param}', quotedParam);
+  } else if (param) {
+    const quotedParam = (param.includes(' ') && !param.startsWith('"') && !param.startsWith("'")) ? `"${param}"` : param;
+    cmd += ` ${quotedParam}`;
   }
 
   console.log(`[xpm] Executing tool: ${cmd} in ${resolvedCwd}`);
@@ -1309,7 +1399,12 @@ app.put('/api/tools', (req, res) => {
   toolsList = validated.map(t => ({
     label: String(t.label).trim(),
     path: String(t.path).trim(),
-    requiresParam: !!t.requiresParam
+    isBuiltIn: !!t.isBuiltIn,
+    requireConfirmation: !!t.requireConfirmation,
+    params: Array.isArray(t.params) ? t.params.map(p => ({
+      label: String(p.label).trim(),
+      type: ['text', 'file', 'folder'].includes(p.type) ? p.type : 'text'
+    })) : []
   }));
   saveToolsConfig();
   res.json({ ok: true });

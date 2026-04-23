@@ -1,10 +1,14 @@
 import { ref, onUnmounted } from 'vue'
 import { api } from './useApi.js'
+import { useNotifications } from './useNotifications.js'
 
 export function useNodes() {
   const nodes = ref([])
   const groups = ref([])
   const lastSnapshot = ref('')
+  const previousStatuses = new Map()
+
+  const { addNotification } = useNotifications()
 
   let statusTimer = null
 
@@ -82,13 +86,32 @@ export function useNodes() {
 
     const snapshot = JSON.stringify({
       nodes: items.map((p) => ({
-        name: p.name, status: p.status, pid: p.pid, group: p.group, branch: p.branch, type: p.type,
+        name: p.name,
+        status: p.status,
+        pid: p.pid,
+        group: p.group,
+        branch: p.branch,
+        type: p.type,
+        tools: p.tools,
       })),
       groups: defs,
     })
 
     if (!force && snapshot === lastSnapshot.value) return
     lastSnapshot.value = snapshot
+
+    // Check for status changes (specifically scripts finishing)
+    for (const p of items) {
+      const prev = previousStatuses.get(p.name)
+      if (prev === 'running' && p.type === 'script') {
+        if (p.status === 'stopped') {
+          addNotification(`Script "${p.name}" finished successfully`, 'success')
+        } else if (p.status === 'errored') {
+          addNotification(`Script "${p.name}" failed`, 'error')
+        }
+      }
+      previousStatuses.set(p.name, p.status)
+    }
 
     nodes.value = items
     groups.value = defs

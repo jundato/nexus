@@ -169,28 +169,87 @@
               Stored in <code>tools.config.json</code>.
             </div>
             <div class="env-rows">
-              <div v-for="(row, i) in toolRows" :key="i" class="env-row" style="flex-wrap: wrap; gap: 8px; align-items: center;">
-                <input v-model="row.label" type="text" class="env-key" placeholder="Tool Label" style="flex: 1; min-width: 120px;" />
-                <div style="flex: 2; min-width: 200px; display: flex; gap: 4px;">
-                  <input v-model="row.path" type="text" class="env-val" placeholder="File Path" style="flex: 1;" />
-                  <button type="button" class="btn-ghost" style="padding: 4px 8px; font-size: 11px;" @click="emit('browse-tool', i)" title="Browse for file">
-                    <i class="fa-solid fa-folder-open"></i>
-                  </button>
+              <div v-for="(row, i) in toolRows" :key="i" class="env-row tool-row-layout">
+                <div class="tool-main-info">
+                  <div 
+                    class="tool-builtin-toggle"
+                    :class="{ active: row.isBuiltIn }"
+                    @click="row.isBuiltIn = !row.isBuiltIn"
+                    title="Toggle to display this tool on all cards by default (Starred)"
+                  >
+                    <i :class="row.isBuiltIn ? 'fa-solid fa-star' : 'fa-regular fa-star'"></i>
+                  </div>
+                  <div 
+                    class="tool-builtin-toggle"
+                    :class="{ active: row.requireConfirmation }"
+                    @click="row.requireConfirmation = !row.requireConfirmation"
+                    style="color: var(--orange, #fbbf24)"
+                    title="Require confirmation before execution"
+                  >
+                    <i :class="row.requireConfirmation ? 'fa-solid fa-circle-check' : 'fa-regular fa-circle-check'"></i>
+                  </div>
+                  <input v-model="row.label" type="text" class="env-key" placeholder="Tool Label" />
+                  <div class="tool-path-group">
+                    <input v-model="row.path" type="text" class="env-val" placeholder="File Path" />
+                    <button type="button" class="btn-ghost" @click="emit('browse-tool', i)" title="Browse for file">
+                      <i class="fa-solid fa-folder-open"></i>
+                    </button>
+                  </div>
                 </div>
-                <div style="display: flex; align-items: center; gap: 6px; user-select: none;">
-                  <input :id="'param-' + i" v-model="row.requiresParam" type="checkbox" />
-                  <label :for="'param-' + i" style="font-size: 12px; color: var(--text-dim);">Needs param</label>
+
+                <div class="tool-meta-actions">
+                  <div 
+                    class="tool-params-summary"
+                    :title="row.params?.length ? 'Parameters: ' + row.params.map(p => p.label || 'Unnamed').join(', ') : 'No parameters defined'"
+                  >
+                    <i class="fa-solid fa-list-check"></i>
+                    <span>{{ row.params?.length || 0 }} params</span>
+                  </div>
+                  <div class="tool-action-buttons">
+                    <button type="button" class="btn-ghost tool-btn-settings" @click.stop="configToolIndex = i" title="Tool Settings">
+                      <i class="fa-solid fa-gear"></i>
+                    </button>
+                    <button type="button" class="btn-remove-row" @click="emit('remove-tool', i)">&times;</button>
+                  </div>
                 </div>
-                <button type="button" class="btn-remove-row" @click="emit('remove-tool', i)">&times;</button>
               </div>
             </div>
             <button type="button" class="btn-add-row" @click="emit('add-tool')">+ Add Tool</button>
           </div>
         </div>
       </div>
+
       <div class="modal-actions">
         <button type="button" class="btn-ghost" @click="emit('close')">Close</button>
         <button type="button" class="btn-start" @click="emit('save')">Save</button>
+      </div>
+    </div>
+
+    <!-- Tool Parameter Settings (Global Overlay) -->
+    <div v-if="configToolIndex !== null" class="tool-params-overlay" @click.stop>
+      <div class="tool-params-content" @click.stop>
+        <div class="tool-params-header">
+          <span>Parameters for <strong>{{ toolRows[configToolIndex].label || 'Tool' }}</strong></span>
+          <button type="button" class="btn-ghost" @click="configToolIndex = null">&times;</button>
+        </div>
+        <div class="tool-params-list">
+          <div v-for="(p, pi) in toolRows[configToolIndex].params" :key="pi" class="tool-param-row">
+            <input v-model="p.label" type="text" placeholder="Param Label" class="env-key" style="flex: 2" />
+            <select v-model="p.type" class="env-val" style="flex: 1; height: 32px; padding: 0 4px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); font-size: 12px; border-radius: 4px;">
+              <option value="text">Text</option>
+              <option value="file">File</option>
+              <option value="folder">Folder</option>
+            </select>
+            <button type="button" class="btn-remove-row" @click="toolRows[configToolIndex].params.splice(pi, 1)">&times;</button>
+          </div>
+          <div v-if="toolRows[configToolIndex].params.length === 0" style="font-size: 12px; color: var(--text-dim); text-align: center; padding: 12px;">
+            No parameters defined.
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; margin-top: 12px;">
+          <button type="button" class="btn-add-row" style="margin: 0; flex: 1" @click="toolRows[configToolIndex].params.push({ label: '', type: 'text' })">+ Add Parameter</button>
+          <button type="button" class="btn-start" style="padding: 4px 12px; font-size: 12px;" @click="configToolIndex = null">Done</button>
+        </div>
       </div>
     </div>
   </div>
@@ -230,6 +289,7 @@ function handleOverlayClick() {
 }
 
 const activeTab = ref('general')
+const configToolIndex = ref(null)
 const importFileRef = ref(null)
 
 // ── Group drag-and-drop ──────────────────

@@ -10,7 +10,10 @@
       @touchstart.prevent="startDragTouch"
     ></div>
     <div class="log-header">
-      <span>Logs — {{ selectedNode }}</span>
+      <div class="card-name" style="border: none; background: transparent; padding: 0;">
+        <i :class="[typeIcon, 'node-type-icon', node?.status]" :title="node?.type" style="margin-right: 8px;"></i>
+        <span>Logs — {{ selectedNode }}</span>
+      </div>
       <span style="font-size: 11px; color: var(--text-dim); margin-left: auto; margin-right: 12px">
         {{ lastRefresh }}
       </span>
@@ -20,11 +23,12 @@
         :node="node"
         :workspace-open="workspaceOpen"
         :terminal-open="true"
-        :show-edit="false"
+        :show-edit="true"
         @start="$emit('start', $event)"
         @stop="$emit('stop', $event)"
         @restart="$emit('restart', $event)"
         @open-workspace="$emit('open-workspace', $event)"
+        @edit="$emit('edit', $event)"
       />
       <button class="btn-ghost btn-icon" @click="$emit('clear')" style="margin-right: 4px" title="Clear Logs">
         <i class="fa-solid fa-eraser"></i>
@@ -57,7 +61,7 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, computed } from 'vue'
 import { AnsiUp } from 'ansi_up'
 import CardActions from './CardActions.vue'
 
@@ -65,6 +69,13 @@ const ansiUp = new AnsiUp()
 function formatAnsi(text) {
   if (!text) return ''
   return ansiUp.ansi_to_html(text)
+}
+
+const TYPE_ICONS = {
+  service: 'fa-solid fa-server',
+  agent: 'fa-solid fa-robot',
+  desk: 'fa-solid fa-desktop',
+  script: 'fa-solid fa-scroll',
 }
 
 const props = defineProps({
@@ -76,7 +87,13 @@ const props = defineProps({
   workspaceOpen: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['close', 'resize', 'clear', 'send-stdin', 'open-workspace', 'start', 'stop', 'restart'])
+const typeIcon = computed(() => {
+  if (!props.node) return 'fa-solid fa-circle'
+  if (props.node.type === 'script' && props.node.status === 'running') return 'fa-solid fa-spinner script-running-spinner'
+  return TYPE_ICONS[props.node.type] || 'fa-solid fa-circle'
+})
+
+const emit = defineEmits(['close', 'resize', 'clear', 'send-stdin', 'open-workspace', 'start', 'stop', 'restart', 'edit'])
 
 const logBodyRef = ref(null)
 const dragging = ref(false)

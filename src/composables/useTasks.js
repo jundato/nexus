@@ -7,7 +7,7 @@ const activeTasks = ref([])
 export function useTasks() {
   const { addNotification } = useNotifications()
 
-  async function executeTool(nodeName, tool, param = '') {
+  async function executeTool(nodeName, tool, param = '', params = null) {
     const taskId = Math.random().toString(36).substring(2, 9)
     const task = reactive({
       id: taskId,
@@ -23,7 +23,8 @@ export function useTasks() {
     try {
       const result = await api(`/api/processes/${encodeURIComponent(nodeName)}/tools/execute`, 'POST', {
         toolLabel: tool.label,
-        param
+        param,
+        params
       })
 
       if (result.error) {

@@ -12,18 +12,22 @@
       @touchstart.prevent="startDragTouch"
     ></div>
     <div class="log-header">
-      <span>Terminal — {{ nodeName }}</span>
+      <div class="card-name" style="border: none; background: transparent; padding: 0;">
+        <i :class="[typeIcon, 'node-type-icon', node?.status]" :title="node?.type" style="margin-right: 8px;"></i>
+        <span>{{ nodeName }}</span>
+      </div>
       <CardActions
         v-if="node"
         style="margin-left: auto; margin-right: 12px; gap: 8px;"
         :node="node"
         :workspace-open="workspaceOpen"
         :terminal-open="true"
-        :show-edit="false"
+        :show-edit="true"
         @start="$emit('start', $event)"
         @stop="$emit('stop', $event)"
         @restart="$emit('restart', $event)"
         @open-workspace="$emit('open-workspace', $event)"
+        @edit="$emit('edit', $event)"
       />
       <button class="btn-ghost btn-icon" @click="$emit('close')" title="Close Terminal">
         <i class="fa-solid fa-xmark"></i>
@@ -59,7 +63,20 @@ const props = defineProps({
 })
 
 const nodeName = computed(() => props.node?.name)
-const emit = defineEmits(['close', 'resize', 'start', 'stop', 'restart', 'open-workspace'])
+const emit = defineEmits(['close', 'resize', 'start', 'stop', 'restart', 'open-workspace', 'edit'])
+
+const TYPE_ICONS = {
+  service: 'fa-solid fa-server',
+  agent: 'fa-solid fa-robot',
+  desk: 'fa-solid fa-desktop',
+  script: 'fa-solid fa-scroll',
+}
+
+const typeIcon = computed(() => {
+  if (!props.node) return 'fa-solid fa-circle'
+  if (props.node.type === 'script' && props.node.status === 'running') return 'fa-solid fa-spinner script-running-spinner'
+  return TYPE_ICONS[props.node.type] || 'fa-solid fa-circle'
+})
 
 const termContainerRef = ref(null)
 const dragging = ref(false)

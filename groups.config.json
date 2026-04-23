@@ -1,6 +1,6 @@
 [
   {
-    "name": "frontend",
+    "name": "frontend-infra",
     "color": "#888888"
   },
   {
@@ -14,5 +14,9 @@
   {
     "name": "backend",
     "color": "#888888"
+  },
+  {
+    "name": "dreamout",
+    "color": "#ff0000"
   }
 ]

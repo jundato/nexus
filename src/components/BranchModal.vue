@@ -31,8 +31,15 @@
           {{ b }}
         </div>
       </div>
-      <div class="modal-actions">
+      <div class="modal-actions" style="justify-content: space-between;">
         <button class="btn-ghost" @click="handleClose">Cancel</button>
+        <button 
+          v-if="filterQuery && !exactMatch" 
+          class="btn-start" 
+          @click="checkout(filterQuery)"
+        >
+          Checkout "{{ filterQuery }}"
+        </button>
       </div>
     </div>
   </div>
@@ -68,6 +75,11 @@ const filteredBranches = computed(() => {
   const q = filterQuery.value.toLowerCase()
   if (!props.branches) return []
   return props.branches.filter(b => b.toLowerCase().includes(q))
+})
+
+const exactMatch = computed(() => {
+  const q = filterQuery.value.toLowerCase()
+  return props.branches && props.branches.some(b => b.toLowerCase() === q)
 })
 
 function checkout(branch) {

@@ -12,3 +12,4 @@ dist
 startup-error.txt
 startup-log.txt
 tools.config.json
+tools/
