@@ -1350,6 +1350,11 @@ button:active {
   box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.25);
 }
 
+.xterm-container.drag-over {
+  border: 2px dashed var(--blue) !important;
+  background: rgba(96, 165, 250, 0.05);
+}
+
 /* ── XTerm Panel ─────────────────────────── */
 .xterm-panel {
   position: fixed;
@@ -1387,6 +1392,36 @@ button:active {
 
 
 
+
+.xterm-panel.drag-over {
+  border: 2px solid var(--blue) !important;
+}
+
+.terminal-drop-overlay {
+  position: absolute;
+  top: 40px; /* Below header */
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(96, 165, 250, 0.15);
+  backdrop-filter: blur(2px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--blue);
+  font-size: 18px;
+  font-weight: 600;
+  z-index: 100;
+  border: 2px dashed var(--blue);
+  margin: 8px;
+  border-radius: 8px;
+}
+
+.terminal-drop-overlay i {
+  font-size: 48px;
+}
 
 /* ── Log Popover ──────────────────────────── */
 .log-popover {

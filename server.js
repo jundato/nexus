@@ -467,7 +467,7 @@ function stopProcess(name) {
 const distDir = path.join(__dirname, 'dist');
 const publicDir = path.join(__dirname, 'public');
 
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 
 app.get('/api/processes', (_req, res) => {
   const result = processConfigs.map((config) => {
@@ -510,7 +510,7 @@ app.get('/api/processes/:name/logs', (req, res) => {
   res.json(logs);
 });
 
-app.use(express.text());
+app.use(express.text({ limit: '50mb' }));
 
 app.post('/api/processes/:name/stdin', (req, res) => {
   const name = req.params.name;
@@ -770,10 +770,23 @@ app.put('/api/processes/:name/file', (req, res) => {
 
   try {
     fs.writeFileSync(fullPath, content, encoding);
-    res.json({ ok: true });
+    res.json({ ok: true, fullPath });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+app.post('/api/processes/:name/file-path', (req, res) => {
+  const name = req.params.name;
+  const config = processConfigs.find(c => c.name === name);
+  if (!config || !config.cwd) return res.status(404).json({ error: 'Process or CWD not found' });
+
+  const resolvedCwd = resolveTemplate(config.cwd);
+  const filePath = req.body.path;
+  if (!filePath) return res.status(400).json({ error: 'path is required' });
+
+  const fullPath = path.resolve(resolvedCwd, filePath);
+  res.json({ fullPath });
 });
 
 app.post('/api/processes/:name/ai-command', (req, res) => {
@@ -886,6 +899,18 @@ app.post('/api/processes/:name/git/checkout', async (req, res) => {
         throw err;
       }
     }
+
+    // Always fetch after checkout to ensure UI has latest remote status
+    try {
+      execFileSync('git', ['fetch'], {
+        cwd: resolvedCwd,
+        encoding: 'utf-8',
+        timeout: 10000
+      });
+    } catch (fetchErr) {
+      console.error(`Fetch failed after checkout for ${oldName}:`, fetchErr.message);
+    }
+
     res.json({ ok: true });
   } catch (err) {
     const msg = err.stderr || err.message;

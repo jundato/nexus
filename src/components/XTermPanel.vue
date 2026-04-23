@@ -1,10 +1,12 @@
 <template>
   <div
     class="xterm-panel"
-    :class="{ hidden: !nodeName, dragging }"
+    :class="{ hidden: !nodeName, dragging, 'drag-over': dragOverTerminal }"
     :style="{ height: panelHeight + 'px' }"
-    @dragover.prevent
-    @drop.prevent
+    @dragenter.prevent="onDragEnter"
+    @dragover.prevent="onDragOver"
+    @dragleave.prevent="onDragLeave"
+    @drop.prevent="onDrop"
   >
     <div
       class="log-resize-handle"
@@ -36,14 +38,21 @@
     <div
       ref="termContainerRef"
       class="xterm-container"
-      :class="{ 'drag-over': dragOverTerminal }"
       tabindex="0"
       @click="focusTerminal"
-      @dragenter.prevent.stop="onDragEnter"
-      @dragover.prevent.stop="onDragOver"
-      @dragleave.prevent.stop="onDragLeave"
-      @drop.prevent.stop="onDrop"
     ></div>
+    
+    <div
+      v-if="dragOverTerminal"
+      class="terminal-drop-overlay"
+      @dragenter.stop.prevent
+      @dragover.stop.prevent
+      @dragleave.stop.prevent
+      @drop.stop.prevent="onDrop"
+    >
+      <i class="fa-solid fa-file-export"></i>
+      <span>Drop to insert path</span>
+    </div>
   </div>
 </template>
 
@@ -53,6 +62,7 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { api } from '../composables/useApi'
+import { useNotifications } from '../composables/useNotifications'
 import CardActions from './CardActions.vue'
 
 const props = defineProps({
@@ -61,6 +71,8 @@ const props = defineProps({
   workspaceOpen: { type: Boolean, default: false },
   terminalWidth: { type: Number, default: 200 },
 })
+
+const { addNotification, removeNotification } = useNotifications()
 
 const nodeName = computed(() => props.node?.name)
 const emit = defineEmits(['close', 'resize', 'start', 'stop', 'restart', 'open-workspace', 'edit'])
@@ -301,62 +313,86 @@ function startDragTouch() {
 
 // File Drag & Drop
 function onDragEnter(ev) {
+  ev.preventDefault()
   dragCounter++
+  console.log('[xpm] DragEnter', dragCounter)
   dragOverTerminal.value = true
 }
 
 function onDragOver(ev) {
+  ev.preventDefault()
   if (ev.dataTransfer) {
     ev.dataTransfer.dropEffect = 'copy'
   }
 }
 
-function onDragLeave() {
+function onDragLeave(ev) {
+  ev.preventDefault()
   dragCounter--
-  if (dragCounter === 0) {
+  console.log('[xpm] DragLeave', dragCounter)
+  if (dragCounter <= 0) {
+    dragCounter = 0
     dragOverTerminal.value = false
   }
 }
 
 async function onDrop(ev) {
-  dragCounter = 0
-  dragOverTerminal.value = false
-  const files = ev.dataTransfer?.files
-  if (!files.length || !nodeName.value) return
-
-  for (const file of files) {
-    try {
-      if (term) term.write(`\r\n\x1b[33m[xpm] Uploading ${file.name}...\x1b[0m\r\n`)
-      
-      const isImage = file.type.startsWith('image/')
-      let content
-      let encoding = 'utf-8'
-
-      if (isImage) {
-        content = await readFileAsBase64(file)
-        encoding = 'base64'
-      } else {
-        content = await readFileAsText(file)
-      }
-
-      await api(`/api/processes/${encodeURIComponent(nodeName.value)}/file`, 'PUT', {
-        path: file.name,
-        content,
-        encoding
-      })
-
-      if (term) {
-        term.write(`\x1b[32m[xpm] Uploaded ${file.name} successfully.\x1b[0m\r\n`)
-        term.write(`\x1b[36m[xpm] You can now reference it with @${file.name}\x1b[0m\r\n`)
-        term.focus()
-        // Automatically start typing the reference for convenience
-        if (ws && ws.readyState === 1) {
-          ws.send(JSON.stringify({ type: 'input', data: `@${file.name} ` }))
-        }
-      }
-    } catch (err) {
-      if (term) term.write(`\x1b[31m[xpm] Failed to upload ${file.name}: ${err.message}\x1b[0m\r\n`)
+  try {
+    ev.preventDefault()
+    console.log('[xpm] Drop event triggered', ev)
+    dragCounter = 0
+    dragOverTerminal.value = false
+    
+    const files = ev.dataTransfer?.files
+    if (!files || !files.length) {
+      console.log('[xpm] No files found in drop')
+      return
     }
+    if (!nodeName.value) {
+      console.log('[xpm] No active node name for upload')
+      return
+    }
+
+    for (const file of files) {
+      console.log(`[xpm] Processing dropped file: ${file.name}`)
+      try {
+        // Resolve path on server instead of uploading
+        const result = await api(`/api/processes/${encodeURIComponent(nodeName.value)}/file-path`, 'POST', {
+          path: file.name
+        })
+        console.log('[xpm] Path resolution response:', result)
+
+        if (result.fullPath) {
+          const quotedPath = result.fullPath.includes(' ') ? `"${result.fullPath}"` : result.fullPath
+          
+          // Copy to clipboard
+          try {
+            await navigator.clipboard.writeText(quotedPath)
+            console.log('[xpm] Path copied to clipboard')
+          } catch (clipErr) {
+            console.error('[xpm] Clipboard copy failed:', clipErr)
+          }
+
+          // Try to push to terminal
+          if (ws && ws.readyState === 1) {
+            console.log('[xpm] Pushing path to terminal via WS')
+            ws.send(JSON.stringify({ type: 'input', data: `${quotedPath} ` }))
+          } else {
+            console.warn('[xpm] Terminal WebSocket not ready')
+            if (term) term.write(`\x1b[33m[xpm] Terminal not active. Path copied to clipboard.\x1b[0m\r\n`)
+          }
+          
+          addNotification(`Reference to "${file.name}" inserted.`, 'success')
+        }
+      } catch (err) {
+        console.error('[xpm] Path resolution error:', err)
+        addNotification(`Failed to resolve path for ${file.name}: ${err.message}`, 'error')
+      }
+    }
+  } catch (globalErr) {
+    console.error('[xpm] Global drop handler error:', globalErr)
+    dragOverTerminal.value = false
+    dragCounter = 0
   }
 }
 
